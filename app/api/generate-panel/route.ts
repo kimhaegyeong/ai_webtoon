@@ -60,23 +60,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateP
       });
     }
 
-    const timeoutMs = 30_000;
-    const timeoutId = setTimeout(() => {
-      throw new Error('AbortError');
-    }, timeoutMs);
+    const timeoutMs = 60_000;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('AbortError')), timeoutMs),
+    );
 
     let result: Awaited<ReturnType<typeof model.generateContent>>;
-    try {
-      result = await model.generateContent({
+    result = await Promise.race([
+      model.generateContent({
         contents: [{ role: 'user', parts }],
         generationConfig: {
           // @ts-expect-error: responseModalities is not yet in the SDK type definitions
-          responseModalities: ['IMAGE'],
+          responseModalities: ['IMAGE', 'TEXT'],
         },
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+      }),
+      timeoutPromise,
+    ]);
 
     const candidate = result.response.candidates?.[0];
     if (!candidate) {
