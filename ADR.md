@@ -58,5 +58,13 @@
   - `participant_{episodeId}`: 에피소드별 참여자 ID (participants 테이블 PK)
   - `anon_id`: 좋아요용 기기 고유 식별자 (panel_likes.anonymous_id)
 - **이유**: 회원가입 없는 즉시 참여가 해커톤 MVP의 핵심 UX. 보안보다 접근성 우선.
+- **보완**: 에피소드 **생성**은 로그인 필수로 변경(ADR-11). 참여(콜라보)는 링크+닉네임만으로 계속 가능.
+
+## ADR-11: Supabase Auth — 이메일 로그인 및 보호 경로
+
+- **결정**: Supabase Auth로 **이메일·비밀번호** 회원가입/로그인 제공. 소셜 로그인은 미구현.
+- **구현**: `app/login` 로그인·회원가입 폼, `app/auth/callback` 코드 교환(이메일 확인 리다이렉트), Next.js **middleware**에서 `createServerClient`로 쿠키 기반 세션 갱신. 보호 경로 `/create`는 비로그인 시 `/login?next=/create`로 리다이렉트.
+- **API**: `create-episode`는 서버에서 `supabase.auth.getUser()`로 사용자 확인 후 `user.id`를 `episodes.creator_id`로 저장. 비로그인 시 401 반환.
+- **이유**: SPEC 1항(에피소드 생성은 로그인 사용자만) 충족. 일일 생성 제한을 `creator_id`(auth user id) 기준으로 안정적으로 적용.
 
 이 문서는 기획안 구체화 과정에서의 설계·아키텍처 결정을 기록한 것이며, 구현 시 추가 ADR이 생기면 번호를 이어 붙인다.
