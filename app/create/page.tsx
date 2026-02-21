@@ -3,8 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 import type { EpisodeStyle } from '@/types';
+
+function getOrCreateAnonId(): string {
+  const key = 'anon_creator_id';
+  const stored = localStorage.getItem(key);
+  if (stored) return stored;
+  const id = crypto.randomUUID();
+  localStorage.setItem(key, id);
+  return id;
+}
 
 const STYLE_OPTIONS: { value: EpisodeStyle; label: string; emoji: string; desc: string }[] = [
   { value: 'webtoon', label: '웹툰', emoji: '🎨', desc: '선명한 컬러, 세로 스크롤' },
@@ -32,43 +40,33 @@ export default function CreatePage() {
     setIsSubmitting(true);
     setError(null);
 
-    const supabase = createClient();
+    const creatorId = getOrCreateAnonId();
 
-    const { data: episode, error: episodeError } = await supabase
-      .from('episodes')
-      .insert({
+    const res = await fetch('/api/create-episode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         style: style!,
-        character_prompt: characterPrompt.trim(),
+        characterPrompt: characterPrompt.trim(),
         title: title.trim() || null,
         summary: summary.trim() || null,
-      })
-      .select()
-      .single();
-
-    if (episodeError || !episode) {
-      setError('에피소드 생성에 실패했어요. 다시 시도해주세요.');
-      setIsSubmitting(false);
-      return;
-    }
-
-    const { data: participant, error: participantError } = await supabase
-      .from('participants')
-      .insert({
-        episode_id: episode.id,
         nickname: nickname.trim(),
-        turn_order: 0,
-      })
-      .select()
-      .single();
+        creatorId,
+      }),
+    });
 
-    if (participantError || !participant) {
-      setError('참여자 등록에 실패했어요. 다시 시도해주세요.');
+    const data: unknown = await res.json();
+
+    if (!res.ok) {
+      const errData = data as { error?: string; code?: string };
+      setError(errData.error ?? '에피소드 생성에 실패했어요. 다시 시도해주세요.');
       setIsSubmitting(false);
       return;
     }
 
-    localStorage.setItem(`participant_${episode.id}`, participant.id);
-    router.push(`/c/${episode.id}`);
+    const { episodeId, participantId } = data as { episodeId: string; participantId: string };
+    localStorage.setItem(`participant_${episodeId}`, participantId);
+    router.push(`/c/${episodeId}`);
   }
 
   return (

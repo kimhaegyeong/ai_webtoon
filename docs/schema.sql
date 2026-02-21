@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS episodes (
   summary         TEXT,
   status          TEXT NOT NULL DEFAULT 'in_progress',
   current_turn_index INT NOT NULL DEFAULT 0,
+  creator_id      TEXT,                          -- 일일 생성 제한용 식별자 (anon UUID 또는 user_id)
   created_at      TIMESTAMPTZ DEFAULT now()
 );
 
