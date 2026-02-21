@@ -61,8 +61,8 @@ export default function PanelForm({
     if (!isValid || isGenerating) return;
     setGenState('generating');
 
-    let imageBase64: string;
-    let mimeType: string;
+    let imageBase64 = '';
+    let mimeType = '';
 
     try {
       const res = await fetch('/api/generate-panel', {
@@ -84,46 +84,45 @@ export default function PanelForm({
       if (!res.ok) {
         const errData = data as { error?: string; code?: string };
         if (errData.code === 'CONTENT_FILTER') {
-          setGenState('content_filter');
           showToast('내용을 조금 수정해 주세요');
           setGenState('idle');
           return;
         }
-        if (res.status === 504) {
-          setGenState('error');
-          return;
-        }
-        setGenState('error');
-        return;
+        // 이미지 생성 실패 — image_url=null 로 칸 저장 후 완료 처리
+        imageBase64 = '';
+        mimeType = '';
+      } else {
+        const okData = data as { imageBase64: string; mimeType: string };
+        imageBase64 = okData.imageBase64;
+        mimeType = okData.mimeType;
       }
-
-      const okData = data as { imageBase64: string; mimeType: string };
-      imageBase64 = okData.imageBase64;
-      mimeType = okData.mimeType;
     } catch {
-      setGenState('error');
-      return;
+      // 네트워크 오류 등 완전 실패 — image_url=null 로 저장
+      imageBase64 = '';
+      mimeType = '';
     }
 
-    // Upload to Supabase Storage
     const supabase = createClient();
-    const ext = mimeType.includes('png') ? 'png' : 'jpg';
-    const fileName = `${episodeId}/${Date.now()}.${ext}`;
-    const fileBytes = base64ToUint8Array(imageBase64);
+    let imageUrl: string | null = null;
 
-    const { error: uploadError } = await supabase.storage
-      .from('panels')
-      .upload(fileName, fileBytes, { contentType: mimeType, upsert: false });
+    // Upload to Supabase Storage (이미지가 있을 때만)
+    if (imageBase64 && mimeType) {
+      const ext = mimeType.includes('png') ? 'png' : 'jpg';
+      const fileName = `${episodeId}/${Date.now()}.${ext}`;
+      const fileBytes = base64ToUint8Array(imageBase64);
 
-    if (uploadError) {
-      showToast('이미지 저장에 실패했어요. 다시 시도해주세요.');
-      setGenState('error');
-      return;
+      const { error: uploadError } = await supabase.storage
+        .from('panels')
+        .upload(fileName, fileBytes, { contentType: mimeType, upsert: false });
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from('panels').getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+      }
+      // 업로드 실패 시 image_url=null 로 계속 진행
     }
 
-    const { data: urlData } = supabase.storage.from('panels').getPublicUrl(fileName);
-
-    // Insert panel row
+    // Insert panel row (image_url이 null이어도 저장)
     const { data: panel, error: panelError } = await supabase
       .from('panels')
       .insert({
@@ -133,7 +132,7 @@ export default function PanelForm({
         dialogue: dialogue.trim() || null,
         sound_effect: soundEffect.trim() || null,
         bubble_position: bubblePosition,
-        image_url: urlData.publicUrl,
+        image_url: imageUrl,
         created_by: participantId,
       })
       .select()

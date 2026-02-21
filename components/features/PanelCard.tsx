@@ -93,8 +93,9 @@ export default function PanelCard({ panel, creatorNickname }: PanelCardProps) {
           )}
         </div>
       ) : (
-        <div className='flex aspect-square items-center justify-center bg-gray-100'>
-          <p className='text-xs text-gray-400'>이미지 없음</p>
+        <div className='flex aspect-square flex-col items-center justify-center gap-2 bg-gray-100'>
+          <div className='h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-400' />
+          <p className='text-xs text-gray-400'>이미지 준비 중</p>
         </div>
       )}
 
