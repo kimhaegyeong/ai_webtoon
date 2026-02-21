@@ -6,6 +6,7 @@ const existingPanelSchema = z.object({
   sceneDescription: z.string().min(1).max(500),
   dialogue: z.string().max(200).nullable().optional(),
   soundEffect: z.string().max(100).nullable().optional(),
+  orderIndex: z.number().int().min(0).optional(),
 });
 
 const requestSchema = z.object({
@@ -13,6 +14,7 @@ const requestSchema = z.object({
   characterPrompt: z.string().min(1).max(500),
   existingPanels: z.array(existingPanelSchema).min(1).max(20),
   panelCount: z.number().int().min(1).max(6),
+  totalPanelCount: z.number().int().min(0).optional(),
 });
 
 const storyPanelSchema = z.object({
@@ -29,12 +31,12 @@ export type GenerateStoryResponse =
   | { error: string; code: 'VALIDATION_ERROR' | 'API_ERROR' | 'TIMEOUT' };
 
 const STYLE_CONTEXT: Record<string, string> = {
-  webtoon: 'full-color Korean webtoon',
-  four_cut: '4-panel black-and-white manga',
-  shoujo: 'shoujo manga with flowery romantic atmosphere',
-  action: 'action manga with speed lines and dynamic composition',
-  chibi: 'super-deformed chibi style with pastel colors',
-  noir: 'black-and-white noir with heavy shadows',
+  webtoon: 'full-color Korean webtoon — use natural conversational Korean dialogue',
+  four_cut: '4-panel black-and-white manga — keep dialogue short and punchy, comedic timing',
+  shoujo: 'shoujo manga with flowery romantic atmosphere — emotional, lyrical, soft expressions',
+  action: 'action manga with speed lines and dynamic composition — short intense dialogue, powerful sound effects',
+  chibi: 'super-deformed chibi style with pastel colors — cute, playful, exaggerated emotions',
+  noir: 'black-and-white noir with heavy shadows — dry, terse, moody narration',
 };
 
 export async function POST(request: NextRequest): Promise<NextResponse<GenerateStoryResponse>> {
@@ -53,11 +55,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateS
     );
   }
 
-  const { style, characterPrompt, existingPanels, panelCount } = parsed.data;
+  const { style, characterPrompt, existingPanels, panelCount, totalPanelCount } = parsed.data;
+
+  const currentPanelNumber = existingPanels.length + 1;
+  const estimatedTotal = (totalPanelCount ?? existingPanels.length) + panelCount;
+  const narrativePhase =
+    currentPanelNumber <= Math.ceil(estimatedTotal * 0.25)
+      ? '도입부 (세계관·캐릭터 소개, 분위기 설정)'
+      : currentPanelNumber <= Math.ceil(estimatedTotal * 0.65)
+        ? '전개/위기 (갈등 심화, 감정 고조)'
+        : currentPanelNumber <= Math.ceil(estimatedTotal * 0.85)
+          ? '절정 (클라이맥스, 가장 강렬한 장면)'
+          : '결말 (해소, 여운)';
 
   const existingPanelsText = existingPanels
     .map((p, i) => {
-      const parts = [`Panel ${i + 1}: ${p.sceneDescription}`];
+      const parts = [`[${i + 1}컷] 장면: ${p.sceneDescription}`];
       if (p.dialogue) parts.push(`대사: "${p.dialogue}"`);
       if (p.soundEffect) parts.push(`효과음: ${p.soundEffect}`);
       return parts.join(' | ');
@@ -69,17 +82,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateS
 Style: ${STYLE_CONTEXT[style] ?? style}
 Character: ${characterPrompt}
 
-Existing panels:
+Story position: Currently at panel ${currentPanelNumber}, estimated total ${estimatedTotal} panels.
+Narrative phase: ${narrativePhase}
+
+Existing panels (read carefully to maintain character emotional continuity):
 ${existingPanelsText}
 
-Generate exactly ${panelCount} continuation panel(s) that naturally continue the story. Write descriptions in Korean.
+Rules:
+- Write scene descriptions and dialogue in Korean.
+- Dialogue must be 40 characters or fewer (Korean). If no dialogue needed, use null.
+- Sound effects should be brief Korean onomatopoeia (e.g. 쾅, 스르르, 두근두근) or null.
+- Match the tone of the style: ${STYLE_CONTEXT[style] ?? style}
+- Continue naturally from the last panel's emotional state and character situation.
+- Each panel must advance the story according to the current narrative phase: ${narrativePhase}
 
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
   "panels": [
     {
       "sceneDescription": "장면 설명 (Korean, 10-100 chars)",
-      "dialogue": "대사 (Korean) or null",
+      "dialogue": "대사 (Korean, max 40 chars) or null",
       "soundEffect": "효과음 (Korean) or null",
       "bubblePosition": "left" or "right" or "center"
     }

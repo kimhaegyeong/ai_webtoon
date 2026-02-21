@@ -338,7 +338,22 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
     return episode.current_turn_index === myParticipant.turn_order;
   }
 
-  const canUseAi = panels.length >= 3 && isMyTurn() && episode?.status === 'in_progress';
+  const MAX_PANELS = 20;
+  const isMaxPanels = panels.length >= MAX_PANELS;
+
+  const myConsecutiveCount = useMemo(() => {
+    if (!myParticipantId || participants.length <= 1) return 0;
+    let count = 0;
+    for (let i = panels.length - 1; i >= 0; i--) {
+      if (panels[i].created_by === myParticipantId) count++;
+      else break;
+    }
+    return count;
+  }, [panels, myParticipantId, participants.length]);
+
+  const isConsecutiveLimit = myConsecutiveCount >= 3;
+
+  const canUseAi = panels.length >= 3 && !isMaxPanels && !isConsecutiveLimit && isMyTurn() && episode?.status === 'in_progress';
   const isAiRunning = aiState === 'story' || aiState === 'images';
 
   // Loading
@@ -471,7 +486,15 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
 
         {/* CTA area */}
         <div className='mt-6 flex flex-col gap-3'>
-          {episode?.status === 'in_progress' && isMyTurn() && (
+          {isMaxPanels ? (
+            <div className='rounded-xl bg-indigo-50 px-4 py-3 text-center text-sm font-medium text-indigo-600'>
+              최대 20칸에 도달했어요. 만화를 완성해보세요!
+            </div>
+          ) : isConsecutiveLimit ? (
+            <div className='rounded-xl bg-amber-50 px-4 py-3 text-center text-sm text-amber-700'>
+              연속 3칸을 등록했어요. 다른 참여자가 그릴 차례예요.
+            </div>
+          ) : episode?.status === 'in_progress' && isMyTurn() ? (
             <>
               <button
                 type='button'
@@ -491,20 +514,18 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
                 </button>
               )}
             </>
-          )}
-          {episode?.status === 'in_progress' && !isMyTurn() && (
+          ) : episode?.status === 'in_progress' && !isMyTurn() ? (
             <div className='rounded-xl bg-amber-50 px-4 py-3 text-center text-sm text-amber-700'>
               다른 참여자의 차례예요
             </div>
-          )}
-          {episode?.status === 'completed' && (
+          ) : episode?.status === 'completed' ? (
             <div className='rounded-xl bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700'>
               완성된 만화예요 🎉
             </div>
-          )}
+          ) : null}
 
           {/* 방장 완성 버튼 */}
-          {myParticipant?.turn_order === 0 && episode?.status === 'in_progress' && panels.length > 0 && (
+          {!isMaxPanels && myParticipant?.turn_order === 0 && episode?.status === 'in_progress' && panels.length > 0 && (
             <button
               type='button'
               onClick={() => setShowCompleteConfirm(true)}
