@@ -48,9 +48,25 @@ export default function PanelForm({
   const [bubblePosition, setBubblePosition] = useState<BubblePosition>('center');
   const [genState, setGenState] = useState<GenerationState>('idle');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isDiceLoading, setIsDiceLoading] = useState(false);
 
   const isValid = sceneDescription.trim().length > 0;
   const isGenerating = genState === 'generating';
+
+  async function handleDice() {
+    if (isDiceLoading) return;
+    setIsDiceLoading(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('episode_templates')
+      .select('scene_description')
+      .eq('style', style);
+    if (data && data.length > 0) {
+      const random = data[Math.floor(Math.random() * data.length)];
+      setSceneDescription(random.scene_description as string);
+    }
+    setIsDiceLoading(false);
+  }
 
   function showToast(msg: string) {
     setToastMsg(msg);
@@ -214,7 +230,19 @@ export default function PanelForm({
       <div className='flex-1 overflow-y-auto px-4 py-6'>
         {/* Scene description */}
         <div className='mb-5'>
-          <label className='mb-1 block text-sm font-semibold text-gray-700'>장면 설명 *</label>
+          <div className='mb-1 flex items-center justify-between'>
+            <label className='text-sm font-semibold text-gray-700'>장면 설명 *</label>
+            {orderIndex === 0 && (
+              <button
+                type='button'
+                onClick={handleDice}
+                disabled={isDiceLoading}
+                className='flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600 transition-all hover:bg-indigo-100 disabled:opacity-50'
+              >
+                {isDiceLoading ? '⏳' : '🎲'} 랜덤 상황 뽑기
+              </button>
+            )}
+          </div>
           <textarea
             value={sceneDescription}
             onChange={(e) => setSceneDescription(e.target.value)}

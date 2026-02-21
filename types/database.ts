@@ -122,6 +122,27 @@ export interface Database {
         };
         Relationships: [];
       };
+      episode_templates: {
+        Row: {
+          id: string;
+          style: EpisodeStyle;
+          scene_description: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          style: EpisodeStyle;
+          scene_description: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          style?: EpisodeStyle;
+          scene_description?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {};
     Functions: {};
