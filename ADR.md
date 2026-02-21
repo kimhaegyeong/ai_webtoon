@@ -3,10 +3,10 @@
 > AI 릴레이 만화 | `docs/사전 개발 기획안.md` 기반 산출
 >
 
-## ADR-1: 프론트엔드 — React + Vite + Tailwind
+## ADR-1: 프론트엔드 — Next.js (App Router) + Tailwind CSS
 
-- **결정**: SPA는 React 18+, 빌드 도구 Vite, 스타일링 Tailwind CSS.
-- **이유**: 빠른 개발·반응형 세로 스트립 뷰 구현에 적합. 해커톤 기간 내 MVP에 집중.
+- **결정**: React 18+ 기반 Next.js App Router, 스타일링 Tailwind CSS v4.
+- **이유**: 서버 컴포넌트·API Route·Vercel 배포를 단일 프레임워크로 통합. Gemini API 키를 Route Handler로 격리하는 데 최적. (초기 Vite SPA 계획에서 변경 — ADR-8 참고)
 
 ## ADR-2: 백엔드·DB·Realtime — Supabase
 
@@ -25,8 +25,8 @@
 
 ## ADR-5: API 키·호출 위치
 
-- **결정**: Gemini/Claude API 키는 클라이언트에 노출하지 않고, 서버/Edge(Vercel API Routes 등)에서만 호출.
-- **이유**: API 키 유출 방지. Vite env는 클라이언트 번들에 포함될 수 있으므로 서버 전용 변수 분리.
+- **결정**: Gemini API 키는 클라이언트에 노출하지 않고, Next.js API Route Handler(`app/api/`)에서만 호출.
+- **이유**: API 키 유출 방지. `NEXT_PUBLIC_` 접두사 없는 환경변수는 서버에만 노출되므로 안전.
 
 ## ADR-6: 배포 — Vercel
 
@@ -38,5 +38,11 @@
 - **episodes**: 스타일, 캐릭터 프롬프트, 제목/요약, 현재 턴 인덱스, 상태(draft | in_progress | completed).
 - **participants**: 에피소드별 닉네임, 턴 순서(turn_order). 0 = 방장.
 - **panels**: order_index, 장면/대사/표음/말풍선 위치, image_url(Storage), created_by. 좋아요는 panel_likes 등 별도 구조로 칸별 집계.
+
+## ADR-8: Vite → Next.js 마이그레이션
+
+- **결정**: 초기 기획의 Vite SPA 대신 Next.js App Router를 채택.
+- **이유**: `app/api/` Route Handler가 Gemini API 키 서버 격리를 자연스럽게 지원. Vercel 배포 시 별도 백엔드 서버 불필요. SSR/SSG 선택적 적용으로 SEO(공유 뷰어 페이지) 대응 가능.
+- **영향**: 환경변수 접두사 `VITE_` → `NEXT_PUBLIC_`, Tailwind v4 + `@tailwindcss/postcss` 플러그인 사용.
 
 이 문서는 기획안 구체화 과정에서의 설계·아키텍처 결정을 기록한 것이며, 구현 시 추가 ADR이 생기면 번호를 이어 붙인다.
