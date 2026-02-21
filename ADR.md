@@ -18,10 +18,11 @@
 - **결정**: 만화 칸 1장당 Gemini 2.5 Flash Image API 1회 호출. 스타일 prefix + 캐릭터 + 이전 칸 레퍼런스 + 현재 칸 내용.
 - **이유**: 말풍선·대사·표음을 포함한 한 컷 생성에 적합. 레퍼런스 이미지로 캐릭터 일관성 유지.
 
-## ADR-4: 스토리 자동완성 — Claude API
+## ADR-4: 스토리 자동완성 — Gemini 2.0 Flash (텍스트)
 
-- **결정**: "AI에게 넘기기" 시 Claude로 남은 칸의 장면·대사·표음 생성 후, 칸별로 Gemini 호출.
-- **이유**: 스토리 연속성·톤 유지에 강점. 생성 프롬프트를 유저가 수정한 뒤 Gemini에 넘기는 플로우 확장 가능.
+- **결정**: "AI에게 맡기기" 시 Gemini 2.0 Flash(텍스트)로 장면·대사·표음·말풍선 위치를 JSON으로 생성하고, 칸별로 Gemini Image API 호출.
+- **이유**: 초기 계획은 Claude API였으나, 해커톤 환경에서 단일 API 키(`GEMINI_API_KEY`)로 텍스트·이미지 생성을 통합 처리. `@google/generative-ai` 패키지만으로 전체 파이프라인 구성 가능.
+- **변경**: 기존 ADR에 Claude API로 기재되었으나 Gemini Flash 텍스트 모델(`gemini-2.0-flash`)로 구현.
 
 ## ADR-5: API 키·호출 위치
 
@@ -44,5 +45,18 @@
 - **결정**: 초기 기획의 Vite SPA 대신 Next.js App Router를 채택.
 - **이유**: `app/api/` Route Handler가 Gemini API 키 서버 격리를 자연스럽게 지원. Vercel 배포 시 별도 백엔드 서버 불필요. SSR/SSG 선택적 적용으로 SEO(공유 뷰어 페이지) 대응 가능.
 - **영향**: 환경변수 접두사 `VITE_` → `NEXT_PUBLIC_`, Tailwind v4 + `@tailwindcss/postcss` 플러그인 사용.
+
+## ADR-9: Realtime 구독 전략 — Supabase Postgres Changes
+
+- **결정**: `panels INSERT`, `episodes UPDATE`, `participants INSERT` 이벤트를 단일 채널(`episode-{id}`)로 구독. 자기 패널 중복 방지는 `useRef`로 참여자 ID를 클로저-안전하게 유지.
+- **이유**: Supabase Realtime의 Postgres Changes는 행 필터(`episode_id=eq.{id}`)를 서버 사이드에서 처리하므로 클라이언트로 불필요한 이벤트가 전달되지 않음.
+- **주의**: Supabase 대시보드에서 해당 테이블의 Realtime을 활성화해야 구독이 동작함.
+
+## ADR-10: 익명 참여 식별 — localStorage UUID
+
+- **결정**: 인증 없이 두 가지 UUID를 localStorage에 저장.
+  - `participant_{episodeId}`: 에피소드별 참여자 ID (participants 테이블 PK)
+  - `anon_id`: 좋아요용 기기 고유 식별자 (panel_likes.anonymous_id)
+- **이유**: 회원가입 없는 즉시 참여가 해커톤 MVP의 핵심 UX. 보안보다 접근성 우선.
 
 이 문서는 기획안 구체화 과정에서의 설계·아키텍처 결정을 기록한 것이며, 구현 시 추가 ADR이 생기면 번호를 이어 붙인다.
