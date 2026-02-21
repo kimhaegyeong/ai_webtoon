@@ -2,52 +2,73 @@
 
 OKKY 바이브코딩 해커톤 MVP 프로젝트.
 
-현재 저장소는 **기획/스펙(SPEC/ADR) 중심**으로 구성되어 있으며, 구현 코드는 아직 추가되지 않았습니다.
-이 문서는 추후 React/Vite/Supabase 기반 구현을 위한 **개발 환경 준비 절차**를 정리합니다.
+## 기술 스택
 
-## 사전 준비물
+| 영역 | 기술 |
+|------|------|
+| Frontend | Next.js (App Router) + React 18+ + Tailwind CSS v4 |
+| Backend / DB | Supabase (PostgreSQL + Realtime + Storage) |
+| 이미지 생성 | Gemini 2.5 Flash Image (Google AI Studio) |
+| 스토리 AI | Gemini 2.5 Flash API |
+| 배포 | Vercel |
+| 패키지 관리 | npm |
 
-- Node.js 18+ 권장 (현재 개발자 PC 확인: Node 22.x)
-- npm 9+ 또는 pnpm/yarn 중 택1 (프로젝트 확정 시 고정)
-- Git
-- Supabase 프로젝트 (DB/Realtime/Storage)
-- (선택) Vercel 계정 (배포/환경변수 관리)
+## 로컬 개발 시작
 
-## 환경 변수
-
-1) `.env.example`을 참고해 `.env`를 생성합니다.
+### 1. 의존성 설치
 
 ```bash
-cp .env.example .env
+npm install
 ```
 
-2) Supabase 프로젝트에서 아래 값을 채웁니다.
+### 2. 환경 변수 설정
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+```bash
+cp .env.example .env.local
+```
 
-3) 서버에서만 사용하는 키(클라이언트 노출 금지)
+`.env.local`에 아래 값을 채웁니다:
 
-- `SUPABASE_SERVICE_ROLE_KEY` (필요 시)
-- `GEMINI_API_KEY`
-- `CLAUDE_API_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase 프로젝트 URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase 익명 키
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase 서비스 롤 키 (서버 전용)
+- `GEMINI_API_KEY` — Gemini API 키 (서버 전용, 클라이언트 노출 금지)
 
-> 참고: `VITE_` prefix가 붙은 값은 Vite 클라이언트 번들에 포함될 수 있으므로
-> **public(노출 가능) 값만** 둡니다. (ADR-5 참고)
+### 3. 개발 서버 실행
 
-## 로컬 개발 실행 (구현 코드 추가 후)
+```bash
+npm run dev
+```
 
-아직 앱 코드가 없어서 `npm run dev` 등은 동작하지 않습니다.
+### 4. 타입 검사 / 린트
 
-코드가 추가되면 아래 형태로 정리할 예정입니다.
+```bash
+npm run typecheck
+npm run lint
+```
 
-- 의존성 설치: `npm install`
-- 개발 서버: `npm run dev`
-- 타입/린트/테스트: `npm run typecheck`, `npm run lint`, `npm test` (도입 시)
+## 프로젝트 구조
+
+```
+app/                   # Next.js App Router
+  page.tsx             # S1 메인(랜딩)
+  create/page.tsx      # S2 에피소드 생성
+  c/[episodeId]/       # S5/S6 콜라보 대기실 / 닉네임 입력
+  e/[episodeId]/       # S9 감상(뷰어)
+  api/                 # Route Handler (Gemini 호출 등 서버 전용)
+components/
+  ui/                  # 버튼, 토스트 등 원자 컴포넌트
+  features/            # 도메인 복합 컴포넌트
+lib/
+  supabase/            # Supabase 클라이언트 (브라우저·서버 분리)
+  gemini/              # Gemini API 헬퍼
+types/                 # TypeScript 타입 정의
+hooks/                 # 커스텀 React 훅
+```
 
 ## 문서
 
 - 기능 요구사항: `SPEC.md`
 - 아키텍처/설계 결정: `ADR.md`
+- 개발 규칙: `shrimp-rules.md`
 - 사전 기획안: `docs/사전 개발 기획안.md`
-
