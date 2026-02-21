@@ -1,0 +1,26 @@
+{
+  "webtoon": {
+    "label": "웹툰",
+    "prefix": "Korean webtoon style, vertical panel composition for scrolling, clean lineart with soft cel shading, vivid but balanced colors, modern webtoon rendering. Include speech bubbles with readable Korean text."
+  },
+  "four_panel": {
+    "label": "4컷만화",
+    "prefix": "4-panel comic strip style, clear separation between panels, simple backgrounds, expressive characters, comedic timing. Include speech bubbles with readable Korean text."
+  },
+  "shoujo": {
+    "label": "소녀만화",
+    "prefix": "Shoujo manga-inspired style, delicate linework, sparkly highlights, romantic atmosphere, soft gradients. Include speech bubbles with readable Korean text."
+  },
+  "pure": {
+    "label": "순정만화",
+    "prefix": "Korean pure romance manhwa style, elegant characters, soft lighting, clean lineart, emotional facial expressions. Include speech bubbles with readable Korean text."
+  },
+  "gag": {
+    "label": "개그만화",
+    "prefix": "Gag comic style, simplified chibi-like proportions, exaggerated expressions, bold outlines, high contrast. Include speech bubbles with readable Korean text."
+  },
+  "fantasy": {
+    "label": "판타지",
+    "prefix": "Fantasy manhwa style, cinematic lighting, detailed costumes and props, magical effects, dynamic action composition. Include speech bubbles with readable Korean text."
+  }
+}
