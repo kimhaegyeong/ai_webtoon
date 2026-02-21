@@ -479,7 +479,7 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
           <div className='flex flex-col gap-4'>
             {panels.map((panel) => {
               const creator = participants.find((p) => p.id === panel.created_by);
-              return <PanelCard key={panel.id} panel={panel} creatorNickname={creator?.nickname ?? null} />;
+              return <PanelCard key={panel.id} panel={panel} creatorNickname={creator?.nickname ?? null} style={episode?.style ?? 'webtoon'} characterPrompt={episode?.character_prompt ?? ''} />;
             })}
           </div>
         )}
