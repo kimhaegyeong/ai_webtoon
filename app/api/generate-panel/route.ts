@@ -47,7 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateP
   );
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-preview-image-generation' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
 
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: prompt }];
 
