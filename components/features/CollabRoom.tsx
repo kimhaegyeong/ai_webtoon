@@ -77,6 +77,10 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
 
   // S7 AI 이어쓰기 state
   const [showAiSheet, setShowAiSheet] = useState(false);
+
+  // 에피소드 완료 state
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
   const [aiPanelCount, setAiPanelCount] = useState(3);
   const [aiState, setAiState] = useState<AiState>('idle');
   const [aiProgress, setAiProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
@@ -318,6 +322,14 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
     setShowAiSheet(false);
   }
 
+  async function handleCompleteEpisode() {
+    if (isCompleting) return;
+    setIsCompleting(true);
+    await supabase.from('episodes').update({ status: 'completed' }).eq('id', episodeId);
+    setShowCompleteConfirm(false);
+    setIsCompleting(false);
+  }
+
   const myParticipant = participants.find((p) => p.id === myParticipantId);
 
   function isMyTurn(): boolean {
@@ -486,9 +498,20 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
             </div>
           )}
           {episode?.status === 'completed' && (
-            <div className='rounded-xl bg-gray-100 px-4 py-3 text-center text-sm text-gray-500'>
-              완성된 만화예요
+            <div className='rounded-xl bg-green-50 px-4 py-3 text-center text-sm font-medium text-green-700'>
+              완성된 만화예요 🎉
             </div>
+          )}
+
+          {/* 방장 완성 버튼 */}
+          {myParticipant?.turn_order === 0 && episode?.status === 'in_progress' && panels.length > 0 && (
+            <button
+              type='button'
+              onClick={() => setShowCompleteConfirm(true)}
+              className='w-full rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-400 transition-all hover:border-green-200 hover:bg-green-50 hover:text-green-600'
+            >
+              이 만화 완성하기
+            </button>
           )}
         </div>
       </main>
@@ -601,6 +624,39 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
                 <p className='mt-2 text-xs text-gray-400'>잠시만 기다려 주세요</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 에피소드 완성 확인 모달 */}
+      {showCompleteConfirm && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center px-4'>
+          <button
+            type='button'
+            className='absolute inset-0 bg-black/40'
+            onClick={() => setShowCompleteConfirm(false)}
+            aria-label='닫기'
+          />
+          <div className='relative w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl'>
+            <p className='text-lg font-bold text-gray-900'>만화를 완성할까요?</p>
+            <p className='mt-2 text-sm text-gray-500'>더 이상 칸을 추가할 수 없어요</p>
+            <div className='mt-6 flex gap-3'>
+              <button
+                type='button'
+                onClick={() => setShowCompleteConfirm(false)}
+                className='flex-1 rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50'
+              >
+                취소
+              </button>
+              <button
+                type='button'
+                onClick={handleCompleteEpisode}
+                disabled={isCompleting}
+                className='flex-1 rounded-xl bg-green-500 py-3 text-sm font-bold text-white hover:bg-green-600 disabled:opacity-60'
+              >
+                {isCompleting ? '처리 중...' : '완성하기 🎉'}
+              </button>
+            </div>
           </div>
         </div>
       )}
