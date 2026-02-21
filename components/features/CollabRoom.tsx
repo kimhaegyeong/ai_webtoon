@@ -82,6 +82,7 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
   // 에피소드 완료 state
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [collabLinkCopied, setCollabLinkCopied] = useState(false);
   const [aiPanelCount, setAiPanelCount] = useState(3);
   const [aiState, setAiState] = useState<AiState>('idle');
   const [aiProgress, setAiProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
@@ -354,8 +355,10 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
 
   const isConsecutiveLimit = myConsecutiveCount >= 3;
 
-  const canUseAi = panels.length >= 3 && !isMaxPanels && !isConsecutiveLimit && isMyTurn() && episode?.status === 'in_progress';
+  // AI 이어쓰기: 3칸 이상 + 내 차례 + 진행 중. 단일 참여자도 사용 가능하도록 연속 제한은 수동 그리기에만 적용.
+  const canUseAi = panels.length >= 3 && !isMaxPanels && isMyTurn() && episode?.status === 'in_progress';
   const isAiRunning = aiState === 'story' || aiState === 'images';
+  const aiDisabledHint = panels.length < 3 ? '3칸 이상 그린 후 사용할 수 있어요' : null;
 
   // Loading
   if (viewState === 'loading') {
@@ -443,10 +446,29 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
         <Link href='/' className='text-sm text-gray-500 hover:text-gray-800'>
           ← 홈
         </Link>
-        <span className='max-w-[160px] truncate text-sm font-medium text-gray-700'>
+        <span className='max-w-[120px] truncate text-sm font-medium text-gray-700'>
           {episode?.title ?? '만화 감상 중'}
         </span>
-        <ShareButton episodeId={episodeId} title={episode?.title} />
+        <div className='flex items-center gap-1'>
+          <button
+            type='button'
+            onClick={async () => {
+              const url = typeof window !== 'undefined' ? `${window.location.origin}/c/${episodeId}` : '';
+              if (url) {
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setCollabLinkCopied(true);
+                  setTimeout(() => setCollabLinkCopied(false), 2000);
+                } catch { /* ignore */ }
+              }
+            }}
+            className='rounded-lg px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100'
+            title='친구가 이 링크로 들어오면 함께 그릴 수 있어요'
+          >
+            {collabLinkCopied ? '복사됨!' : '콜라보 링크'}
+          </button>
+          <ShareButton episodeId={episodeId} title={episode?.title} />
+        </div>
       </header>
 
       <main className='mx-auto max-w-lg px-4 py-4'>
@@ -497,14 +519,17 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
               >
                 {isFetchingRef ? '준비 중...' : panels.length === 0 ? '✏️ 첫 칸 그리기' : '✏️ 다음 칸 그리기'}
               </button>
-              {canUseAi && (
-                <button
-                  type='button'
-                  onClick={() => setShowAiSheet(true)}
-                  className='w-full rounded-xl border-2 border-indigo-200 bg-white py-3 text-sm font-semibold text-indigo-500 transition-all hover:border-indigo-400 hover:bg-indigo-50'
-                >
-                  ✨ AI에게 맡기기
-                </button>
+              <button
+                type='button'
+                onClick={() => canUseAi && setShowAiSheet(true)}
+                disabled={!canUseAi}
+                title={aiDisabledHint ?? 'AI가 스토리를 이어서 칸을 그려요'}
+                className='w-full rounded-xl border-2 border-indigo-200 bg-white py-3 text-sm font-semibold text-indigo-500 transition-all hover:border-indigo-400 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white'
+              >
+                ✨ AI에게 맡기기
+              </button>
+              {aiDisabledHint && (
+                <p className='text-center text-xs text-gray-400'>{aiDisabledHint}</p>
               )}
             </>
           ) : episode?.status === 'in_progress' && !isMyTurn() ? (
