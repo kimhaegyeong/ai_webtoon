@@ -1,3 +1,7 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import type { Panel } from '@/types';
 
 interface PanelCardProps {
@@ -5,7 +9,72 @@ interface PanelCardProps {
   creatorNickname: string | null;
 }
 
+function getAnonymousId(): string {
+  const key = 'anon_id';
+  const stored = localStorage.getItem(key);
+  if (stored) return stored;
+  const id = crypto.randomUUID();
+  localStorage.setItem(key, id);
+  return id;
+}
+
 export default function PanelCard({ panel, creatorNickname }: PanelCardProps) {
+  const [likeCount, setLikeCount] = useState(0);
+  const [liked, setLiked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadLikes = useCallback(async () => {
+    const supabase = createClient();
+    const { count } = await supabase
+      .from('panel_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('panel_id', panel.id);
+
+    setLikeCount(count ?? 0);
+
+    const anonId = getAnonymousId();
+    const { data } = await supabase
+      .from('panel_likes')
+      .select('id')
+      .eq('panel_id', panel.id)
+      .eq('anonymous_id', anonId)
+      .single();
+
+    setLiked(!!data);
+  }, [panel.id]);
+
+  useEffect(() => {
+    loadLikes();
+  }, [loadLikes]);
+
+  async function handleLike() {
+    if (isLoading) return;
+    setIsLoading(true);
+
+    const supabase = createClient();
+    const anonId = getAnonymousId();
+
+    if (liked) {
+      await supabase
+        .from('panel_likes')
+        .delete()
+        .eq('panel_id', panel.id)
+        .eq('anonymous_id', anonId);
+      setLiked(false);
+      setLikeCount((prev) => Math.max(0, prev - 1));
+    } else {
+      const { error } = await supabase
+        .from('panel_likes')
+        .insert({ panel_id: panel.id, anonymous_id: anonId });
+      if (!error) {
+        setLiked(true);
+        setLikeCount((prev) => prev + 1);
+      }
+    }
+
+    setIsLoading(false);
+  }
+
   return (
     <div className='overflow-hidden rounded-2xl bg-white shadow-sm'>
       {/* Image */}
@@ -36,10 +105,27 @@ export default function PanelCard({ panel, creatorNickname }: PanelCardProps) {
         </div>
       )}
 
-      {/* Footer */}
-      <div className='flex items-center justify-between px-4 py-2 text-xs text-gray-400'>
-        <span className='font-medium text-gray-500'>#{panel.order_index + 1}</span>
-        {creatorNickname && <span>by {creatorNickname}</span>}
+      {/* Footer: panel number + creator + like */}
+      <div className='flex items-center justify-between px-4 py-2'>
+        <div className='flex items-center gap-2 text-xs text-gray-400'>
+          <span className='font-medium text-gray-500'>#{panel.order_index + 1}</span>
+          {creatorNickname && <span>by {creatorNickname}</span>}
+        </div>
+        <button
+          type='button'
+          onClick={handleLike}
+          disabled={isLoading}
+          className={[
+            'flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-all',
+            liked
+              ? 'bg-rose-50 text-rose-500'
+              : 'bg-gray-100 text-gray-400 hover:bg-rose-50 hover:text-rose-400',
+          ].join(' ')}
+          aria-label={liked ? '좋아요 취소' : '좋아요'}
+        >
+          <span>{liked ? '♥' : '♡'}</span>
+          {likeCount > 0 && <span>{likeCount}</span>}
+        </button>
       </div>
     </div>
   );
