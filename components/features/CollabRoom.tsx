@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import PanelForm from '@/components/features/PanelForm';
@@ -41,6 +41,8 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
 }
 
 export default function CollabRoom({ episodeId }: CollabRoomProps) {
+  const supabase = useMemo(() => createClient(), []);
+
   const [viewState, setViewState] = useState<ViewState>('loading');
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [panels, setPanels] = useState<Panel[]>([]);
@@ -50,6 +52,12 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
   const [previousBase64, setPreviousBase64] = useState<string | null>(null);
   const [isFetchingRef, setIsFetchingRef] = useState(false);
 
+  // Ref for closure-safe access in Realtime callbacks
+  const myParticipantIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    myParticipantIdRef.current = myParticipantId;
+  }, [myParticipantId]);
+
   // S6 join form state
   const [joinNickname, setJoinNickname] = useState('');
   const [isJoining, setIsJoining] = useState(false);
@@ -57,8 +65,6 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
 
   const loadData = useCallback(
     async (participantId: string | null) => {
-      const supabase = createClient();
-
       const [episodeResult, panelsResult, participantsResult] = await Promise.all([
         supabase.from('episodes').select('*').eq('id', episodeId).single(),
         supabase.from('panels').select('*').eq('episode_id', episodeId).order('order_index'),
@@ -81,20 +87,59 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
         setViewState('join');
       }
     },
-    [episodeId],
+    [episodeId, supabase],
   );
 
+  // Initial data load
   useEffect(() => {
     const stored = localStorage.getItem(`participant_${episodeId}`);
     loadData(stored);
   }, [episodeId, loadData]);
+
+  // Realtime subscriptions (M3)
+  useEffect(() => {
+    const channel = supabase
+      .channel('episode-' + episodeId)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'panels', filter: `episode_id=eq.${episodeId}` },
+        (payload) => {
+          const newPanel = payload.new as Panel;
+          // Skip own panels — already added optimistically in handlePanelSuccess
+          if (newPanel.created_by === myParticipantIdRef.current) return;
+          setPanels((prev) => [...prev, newPanel]);
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'episodes', filter: `id=eq.${episodeId}` },
+        (payload) => {
+          setEpisode(payload.new as Episode);
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'participants', filter: `episode_id=eq.${episodeId}` },
+        (payload) => {
+          const newParticipant = payload.new as Participant;
+          setParticipants((prev) => {
+            if (prev.some((p) => p.id === newParticipant.id)) return prev;
+            return [...prev, newParticipant];
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [episodeId, supabase]);
 
   async function handleJoin() {
     if (!joinNickname.trim() || isJoining) return;
     setIsJoining(true);
     setJoinError(null);
 
-    const supabase = createClient();
     const nextTurnOrder = participants.length;
 
     const { data: participant, error } = await supabase
@@ -129,10 +174,17 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
     setShowPanelForm(true);
   }
 
-  function handlePanelSuccess(panel: Panel) {
+  async function handlePanelSuccess(panel: Panel) {
+    // Optimistic update — Realtime callback will skip this panel (same creator)
     setPanels((prev) => [...prev, panel]);
     setShowPanelForm(false);
     setPreviousBase64(null);
+
+    // Advance turn for multi-user collab (no-op for single user: (0+1)%1 = 0)
+    if (episode) {
+      const nextTurnIndex = (episode.current_turn_index + 1) % Math.max(participants.length, 1);
+      await supabase.from('episodes').update({ current_turn_index: nextTurnIndex }).eq('id', episodeId);
+    }
   }
 
   const myParticipant = participants.find((p) => p.id === myParticipantId);
