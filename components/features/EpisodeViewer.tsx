@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import PanelCard from '@/components/features/PanelCard';
+import ShareButton from '@/components/features/ShareButton';
 import type { Episode, Panel, Participant, EpisodeStyle, EpisodeReview } from '@/types';
 
 interface EpisodeViewerProps {
@@ -35,7 +36,6 @@ export default function EpisodeViewer({ episodeId }: EpisodeViewerProps) {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [panels, setPanels] = useState<Panel[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Episode like state
   const [likeCount, setLikeCount] = useState(0);
@@ -151,11 +151,6 @@ export default function EpisodeViewer({ episodeId }: EpisodeViewerProps) {
     setReviewSubmitting(false);
   }
 
-  function handleShare() {
-    navigator.clipboard.writeText(window.location.href).catch(() => null);
-    setToastMsg('링크 복사됨');
-    setTimeout(() => setToastMsg(null), 2000);
-  }
 
   // Loading
   if (viewState === 'loading') {
@@ -182,13 +177,6 @@ export default function EpisodeViewer({ episodeId }: EpisodeViewerProps) {
 
   return (
     <div className='min-h-screen bg-gray-50'>
-      {/* Toast */}
-      {toastMsg && (
-        <div className='fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-gray-800 px-4 py-2 text-sm text-white shadow-lg'>
-          {toastMsg}
-        </div>
-      )}
-
       {/* Header */}
       <header className='sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3'>
         <Link href='/' className='text-sm text-gray-500 hover:text-gray-800'>
@@ -197,9 +185,7 @@ export default function EpisodeViewer({ episodeId }: EpisodeViewerProps) {
         <span className='max-w-[160px] truncate text-sm font-medium text-gray-700'>
           {episode?.title ?? '에피소드 보기'}
         </span>
-        <button type='button' onClick={handleShare} className='text-sm text-indigo-500 hover:text-indigo-700'>
-          공유
-        </button>
+        <ShareButton episodeId={episodeId} title={episode?.title} />
       </header>
 
       <main className='mx-auto max-w-lg px-4 py-4'>

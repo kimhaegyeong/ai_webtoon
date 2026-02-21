@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import PanelForm from '@/components/features/PanelForm';
 import PanelCard from '@/components/features/PanelCard';
+import ShareButton from '@/components/features/ShareButton';
 import type { Episode, Panel, Participant, EpisodeStyle, BubblePosition } from '@/types';
 
 interface CollabRoomProps {
@@ -445,15 +446,7 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
         <span className='max-w-[160px] truncate text-sm font-medium text-gray-700'>
           {episode?.title ?? '만화 감상 중'}
         </span>
-        <button
-          type='button'
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href).catch(() => null);
-          }}
-          className='text-sm text-indigo-500 hover:text-indigo-700'
-        >
-          공유
-        </button>
+        <ShareButton episodeId={episodeId} title={episode?.title} />
       </header>
 
       <main className='mx-auto max-w-lg px-4 py-4'>
