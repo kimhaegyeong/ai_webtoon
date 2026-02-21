@@ -36,6 +36,7 @@ export interface Database {
           current_turn_index?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       participants: {
         Row: {
@@ -59,6 +60,7 @@ export interface Database {
           turn_order?: number;
           joined_at?: string;
         };
+        Relationships: [];
       };
       panels: {
         Row: {
@@ -97,6 +99,7 @@ export interface Database {
           created_by?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       panel_likes: {
         Row: {
@@ -117,7 +120,10 @@ export interface Database {
           anonymous_id?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
     };
+    Views: {};
+    Functions: {};
   };
 }
