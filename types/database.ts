@@ -146,6 +146,51 @@ export interface Database {
         };
         Relationships: [];
       };
+      episode_likes: {
+        Row: {
+          id: string;
+          episode_id: string;
+          anonymous_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          episode_id: string;
+          anonymous_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          episode_id?: string;
+          anonymous_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      episode_reviews: {
+        Row: {
+          id: string;
+          episode_id: string;
+          anonymous_id: string;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          episode_id: string;
+          anonymous_id: string;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          episode_id?: string;
+          anonymous_id?: string;
+          content?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {};
     Functions: {};

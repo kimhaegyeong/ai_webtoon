@@ -211,3 +211,33 @@ INSERT INTO episode_templates (style, scene_description) VALUES
 ('noir', '심문 도중 상대가 아는 것이 너무 많다는 걸 깨닫는다'),
 ('noir', '낡은 호텔 방, 체크아웃하지 않은 투숙객의 흔적을 조사한다'),
 ('noir', '마지막 증거가 담긴 USB를 손에 쥔 채 쫓기고 있다');
+
+-- ============================================================
+-- 에피소드 좋아요
+-- ============================================================
+CREATE TABLE IF NOT EXISTS episode_likes (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  episode_id    UUID NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+  anonymous_id  TEXT NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(episode_id, anonymous_id)
+);
+ALTER TABLE episode_likes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public read episode_likes" ON episode_likes FOR SELECT USING (true);
+CREATE POLICY "public insert episode_likes" ON episode_likes FOR INSERT WITH CHECK (true);
+CREATE POLICY "public delete episode_likes" ON episode_likes FOR DELETE USING (true);
+
+-- ============================================================
+-- 에피소드 리뷰
+-- ============================================================
+CREATE TABLE IF NOT EXISTS episode_reviews (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  episode_id    UUID NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
+  anonymous_id  TEXT NOT NULL,
+  content       TEXT NOT NULL,
+  created_at    TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE episode_reviews ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public read episode_reviews" ON episode_reviews FOR SELECT USING (true);
+CREATE POLICY "public insert episode_reviews" ON episode_reviews FOR INSERT WITH CHECK (true);
+CREATE POLICY "public delete episode_reviews" ON episode_reviews FOR DELETE USING (true);
