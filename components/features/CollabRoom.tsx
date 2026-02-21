@@ -5,13 +5,21 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import PanelForm from '@/components/features/PanelForm';
 import PanelCard from '@/components/features/PanelCard';
-import type { Episode, Panel, Participant, EpisodeStyle } from '@/types';
+import type { Episode, Panel, Participant, EpisodeStyle, BubblePosition } from '@/types';
 
 interface CollabRoomProps {
   episodeId: string;
 }
 
 type ViewState = 'loading' | 'error' | 'join' | 'strip';
+type AiState = 'idle' | 'story' | 'images' | 'error';
+
+interface StoryPanel {
+  sceneDescription: string;
+  dialogue: string | null;
+  soundEffect: string | null;
+  bubblePosition: BubblePosition;
+}
 
 const STYLE_LABELS: Record<EpisodeStyle, string> = {
   webtoon: '웹툰',
@@ -40,6 +48,15 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export default function CollabRoom({ episodeId }: CollabRoomProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -57,6 +74,13 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
   useEffect(() => {
     myParticipantIdRef.current = myParticipantId;
   }, [myParticipantId]);
+
+  // S7 AI 이어쓰기 state
+  const [showAiSheet, setShowAiSheet] = useState(false);
+  const [aiPanelCount, setAiPanelCount] = useState(3);
+  const [aiState, setAiState] = useState<AiState>('idle');
+  const [aiProgress, setAiProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // S6 join form state
   const [joinNickname, setJoinNickname] = useState('');
@@ -105,7 +129,6 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
         { event: 'INSERT', schema: 'public', table: 'panels', filter: `episode_id=eq.${episodeId}` },
         (payload) => {
           const newPanel = payload.new as Panel;
-          // Skip own panels — already added optimistically in handlePanelSuccess
           if (newPanel.created_by === myParticipantIdRef.current) return;
           setPanels((prev) => [...prev, newPanel]);
         },
@@ -175,16 +198,124 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
   }
 
   async function handlePanelSuccess(panel: Panel) {
-    // Optimistic update — Realtime callback will skip this panel (same creator)
     setPanels((prev) => [...prev, panel]);
     setShowPanelForm(false);
     setPreviousBase64(null);
 
-    // Advance turn for multi-user collab (no-op for single user: (0+1)%1 = 0)
     if (episode) {
       const nextTurnIndex = (episode.current_turn_index + 1) % Math.max(participants.length, 1);
       await supabase.from('episodes').update({ current_turn_index: nextTurnIndex }).eq('id', episodeId);
     }
+  }
+
+  // S7: AI 이어쓰기 — generate story then images sequentially
+  async function handleAiStory() {
+    if (!episode || !myParticipantId) return;
+    setAiState('story');
+    setAiError(null);
+    setAiProgress({ current: 0, total: aiPanelCount });
+
+    // Step 1: Generate story panel descriptions
+    const storyRes = await fetch('/api/generate-story', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        style: episode.style,
+        characterPrompt: episode.character_prompt,
+        existingPanels: panels.map((p) => ({
+          sceneDescription: p.scene_description,
+          dialogue: p.dialogue,
+          soundEffect: p.sound_effect,
+        })),
+        panelCount: aiPanelCount,
+      }),
+    });
+
+    const storyData: unknown = await storyRes.json();
+    if (!storyRes.ok) {
+      setAiState('error');
+      setAiError('스토리 생성에 실패했어요. 다시 시도해주세요.');
+      return;
+    }
+
+    const { panels: storyPanels } = storyData as { panels: StoryPanel[] };
+
+    // Step 2: Generate image for each story panel
+    setAiState('images');
+    let currentPanels = [...panels];
+
+    for (let i = 0; i < storyPanels.length; i++) {
+      setAiProgress({ current: i + 1, total: storyPanels.length });
+      const storyPanel = storyPanels[i];
+
+      // Get reference image from last panel
+      const lastPanel = currentPanels[currentPanels.length - 1] ?? null;
+      let refBase64: string | null = null;
+      if (lastPanel?.image_url) {
+        refBase64 = await fetchImageAsBase64(lastPanel.image_url);
+      }
+
+      // Generate image
+      const imgRes = await fetch('/api/generate-panel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          style: episode.style,
+          characterPrompt: episode.character_prompt,
+          sceneDescription: storyPanel.sceneDescription,
+          dialogue: storyPanel.dialogue,
+          soundEffect: storyPanel.soundEffect,
+          bubblePosition: storyPanel.bubblePosition,
+          referenceImageBase64: refBase64,
+        }),
+      });
+
+      const imgData: unknown = await imgRes.json();
+      if (!imgRes.ok) {
+        // Skip this panel on error, continue
+        continue;
+      }
+
+      const { imageBase64, mimeType } = imgData as { imageBase64: string; mimeType: string };
+
+      // Upload to storage
+      const ext = mimeType.includes('png') ? 'png' : 'jpg';
+      const fileName = `${episodeId}/${Date.now()}-ai-${i}.${ext}`;
+      const fileBytes = base64ToUint8Array(imageBase64);
+
+      const { error: uploadError } = await supabase.storage
+        .from('panels')
+        .upload(fileName, fileBytes, { contentType: mimeType, upsert: false });
+
+      if (uploadError) continue;
+
+      const { data: urlData } = supabase.storage.from('panels').getPublicUrl(fileName);
+
+      // Insert panel row
+      const orderIndex = currentPanels.length;
+      const { data: newPanel, error: panelError } = await supabase
+        .from('panels')
+        .insert({
+          episode_id: episodeId,
+          order_index: orderIndex,
+          scene_description: storyPanel.sceneDescription,
+          dialogue: storyPanel.dialogue,
+          sound_effect: storyPanel.soundEffect,
+          bubble_position: storyPanel.bubblePosition,
+          image_url: urlData.publicUrl,
+          created_by: myParticipantId,
+        })
+        .select()
+        .single();
+
+      if (!panelError && newPanel) {
+        currentPanels = [...currentPanels, newPanel];
+        setPanels(currentPanels);
+      }
+    }
+
+    setAiState('idle');
+    setShowAiSheet(false);
   }
 
   const myParticipant = participants.find((p) => p.id === myParticipantId);
@@ -194,6 +325,9 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
     if (episode.status === 'completed') return false;
     return episode.current_turn_index === myParticipant.turn_order;
   }
+
+  const canUseAi = panels.length >= 3 && isMyTurn() && episode?.status === 'in_progress';
+  const isAiRunning = aiState === 'story' || aiState === 'images';
 
   // Loading
   if (viewState === 'loading') {
@@ -323,17 +457,28 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
           </div>
         )}
 
-        {/* CTA */}
-        <div className='mt-6'>
+        {/* CTA area */}
+        <div className='mt-6 flex flex-col gap-3'>
           {episode?.status === 'in_progress' && isMyTurn() && (
-            <button
-              type='button'
-              onClick={handleAddPanel}
-              disabled={isFetchingRef}
-              className='w-full rounded-xl bg-indigo-500 py-4 text-base font-bold text-white transition-all hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60'
-            >
-              {isFetchingRef ? '준비 중...' : panels.length === 0 ? '✏️ 첫 칸 그리기' : '✏️ 다음 칸 그리기'}
-            </button>
+            <>
+              <button
+                type='button'
+                onClick={handleAddPanel}
+                disabled={isFetchingRef}
+                className='w-full rounded-xl bg-indigo-500 py-4 text-base font-bold text-white transition-all hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60'
+              >
+                {isFetchingRef ? '준비 중...' : panels.length === 0 ? '✏️ 첫 칸 그리기' : '✏️ 다음 칸 그리기'}
+              </button>
+              {canUseAi && (
+                <button
+                  type='button'
+                  onClick={() => setShowAiSheet(true)}
+                  className='w-full rounded-xl border-2 border-indigo-200 bg-white py-3 text-sm font-semibold text-indigo-500 transition-all hover:border-indigo-400 hover:bg-indigo-50'
+                >
+                  ✨ AI에게 맡기기
+                </button>
+              )}
+            </>
           )}
           {episode?.status === 'in_progress' && !isMyTurn() && (
             <div className='rounded-xl bg-amber-50 px-4 py-3 text-center text-sm text-amber-700'>
@@ -363,6 +508,101 @@ export default function CollabRoom({ episodeId }: CollabRoomProps) {
             setPreviousBase64(null);
           }}
         />
+      )}
+
+      {/* S7: AI 이어쓰기 바텀시트 */}
+      {showAiSheet && (
+        <div className='fixed inset-0 z-50 flex flex-col justify-end'>
+          {/* Backdrop */}
+          <button
+            type='button'
+            className='absolute inset-0 bg-black/40'
+            onClick={() => { if (!isAiRunning) setShowAiSheet(false); }}
+            aria-label='닫기'
+          />
+
+          {/* Sheet */}
+          <div className='relative rounded-t-3xl bg-white px-6 pb-8 pt-6 shadow-2xl'>
+            {/* Handle */}
+            <div className='mx-auto mb-6 h-1 w-10 rounded-full bg-gray-200' />
+
+            {!isAiRunning ? (
+              <>
+                <h3 className='mb-1 text-lg font-bold text-gray-900'>AI에게 맡기기</h3>
+                <p className='mb-5 text-sm text-gray-500'>
+                  지금까지의 스토리를 바탕으로 AI가 칸을 이어 그려요
+                </p>
+
+                {/* Panel count selector */}
+                <div className='mb-6'>
+                  <label className='mb-2 block text-sm font-semibold text-gray-700'>
+                    몇 칸을 생성할까요?
+                  </label>
+                  <div className='flex gap-2'>
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <button
+                        key={n}
+                        type='button'
+                        onClick={() => setAiPanelCount(n)}
+                        className={[
+                          'flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all',
+                          aiPanelCount === n
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-600'
+                            : 'border-gray-200 text-gray-500 hover:border-indigo-200',
+                        ].join(' ')}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {aiError && (
+                  <div className='mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700'>{aiError}</div>
+                )}
+
+                <div className='flex gap-3'>
+                  <button
+                    type='button'
+                    onClick={() => { setShowAiSheet(false); setAiError(null); }}
+                    className='flex-1 rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-600 hover:bg-gray-50'
+                  >
+                    취소
+                  </button>
+                  <button
+                    type='button'
+                    onClick={handleAiStory}
+                    className='flex-1 rounded-xl bg-indigo-500 py-3 text-sm font-bold text-white hover:bg-indigo-600'
+                  >
+                    ✨ 생성 시작
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Generation progress */
+              <div className='flex flex-col items-center py-4'>
+                <div className='mb-4 h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-500' />
+                {aiState === 'story' && (
+                  <p className='text-base font-semibold text-gray-700'>스토리 구성 중...</p>
+                )}
+                {aiState === 'images' && (
+                  <>
+                    <p className='text-base font-semibold text-gray-700'>
+                      이미지 생성 중... ({aiProgress.current}/{aiProgress.total})
+                    </p>
+                    <div className='mt-3 h-2 w-full max-w-xs overflow-hidden rounded-full bg-gray-100'>
+                      <div
+                        className='h-full rounded-full bg-indigo-500 transition-all'
+                        style={{ width: `${(aiProgress.current / aiProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+                <p className='mt-2 text-xs text-gray-400'>잠시만 기다려 주세요</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
