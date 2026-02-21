@@ -1,10 +1,16 @@
 // S1: 메인(랜딩) 페이지
 import Link from 'next/link';
 import GallerySection from '@/components/features/GallerySection';
+import AuthNav from '@/components/features/AuthNav';
 
 export default function HomePage() {
   return (
     <main className='flex min-h-screen flex-col'>
+      {/* Header: 로그인 */}
+      <header className='sticky top-0 z-10 flex items-center justify-end border-b border-white/10 bg-indigo-600/95 px-4 py-2 backdrop-blur-sm'>
+        <AuthNav />
+      </header>
+
       {/* Hero Section */}
       <section className='flex flex-1 flex-col items-center justify-center bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 px-4 py-20 text-center text-white'>
         {/* Logo / Service Name */}

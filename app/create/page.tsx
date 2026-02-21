@@ -4,15 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { EpisodeStyle } from '@/types';
-
-function getOrCreateAnonId(): string {
-  const key = 'anon_creator_id';
-  const stored = localStorage.getItem(key);
-  if (stored) return stored;
-  const id = crypto.randomUUID();
-  localStorage.setItem(key, id);
-  return id;
-}
+import AuthNav from '@/components/features/AuthNav';
 
 const STYLE_OPTIONS: { value: EpisodeStyle; label: string; emoji: string; desc: string }[] = [
   { value: 'webtoon', label: '웹툰', emoji: '🎨', desc: '선명한 컬러, 세로 스크롤' },
@@ -40,8 +32,6 @@ export default function CreatePage() {
     setIsSubmitting(true);
     setError(null);
 
-    const creatorId = getOrCreateAnonId();
-
     const res = await fetch('/api/create-episode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,11 +41,17 @@ export default function CreatePage() {
         title: title.trim() || null,
         summary: summary.trim() || null,
         nickname: nickname.trim(),
-        creatorId,
       }),
     });
 
     const data: unknown = await res.json();
+
+    if (res.status === 401) {
+      router.push(`/login?next=${encodeURIComponent('/create')}`);
+      router.refresh();
+      setIsSubmitting(false);
+      return;
+    }
 
     if (!res.ok) {
       const errData = data as { error?: string; code?: string };
@@ -78,6 +74,7 @@ export default function CreatePage() {
           <span>뒤로</span>
         </Link>
         <span className='text-sm font-medium text-gray-500'>1/2 단계</span>
+        <AuthNav />
       </header>
 
       <main className='mx-auto max-w-lg px-4 py-8'>

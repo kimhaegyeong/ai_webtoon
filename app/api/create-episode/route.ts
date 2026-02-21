@@ -10,13 +10,12 @@ const requestSchema = z.object({
   title: z.string().max(50).nullable().optional(),
   summary: z.string().max(100).nullable().optional(),
   nickname: z.string().min(1).max(10),
-  creatorId: z.string().min(1).max(100), // 클라이언트 식별자 (localStorage UUID 또는 향후 user_id)
 });
 
 export type CreateEpisodeRequest = z.infer<typeof requestSchema>;
 export type CreateEpisodeResponse =
   | { episodeId: string; participantId: string }
-  | { error: string; code: 'DAILY_LIMIT' | 'VALIDATION_ERROR' | 'DB_ERROR' };
+  | { error: string; code: 'DAILY_LIMIT' | 'VALIDATION_ERROR' | 'DB_ERROR' | 'UNAUTHORIZED' };
 
 export async function POST(request: NextRequest): Promise<NextResponse<CreateEpisodeResponse>> {
   let body: unknown;
@@ -34,9 +33,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<CreateEpi
     );
   }
 
-  const { style, characterPrompt, title, summary, nickname, creatorId } = parsed.data;
+  const { style, characterPrompt, title, summary, nickname } = parsed.data;
 
   const supabase = await createServerClient();
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: '로그인이 필요해요.', code: 'UNAUTHORIZED' as const },
+      { status: 401 },
+    );
+  }
+
+  const creatorId = user.id;
 
   // 오늘 생성한 에피소드 수 확인 (KST 기준 당일 00:00~23:59)
   const todayStart = new Date();
