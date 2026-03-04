@@ -72,3 +72,8 @@ hooks/                 # 커스텀 React 훅
 - 아키텍처/설계 결정: `ADR.md`
 - 개발 규칙: `shrimp-rules.md`
 - 사전 기획안: `docs/사전 개발 기획안.md`
+
+---
+<img width="1521" height="1746" alt="ScreenShot Tool -20260304175637" src="https://github.com/user-attachments/assets/5362c291-8a9f-4487-8502-54fa00242d8d" />
+<img width="2281" height="1363" alt="ScreenShot Tool -20260304175822" src="https://github.com/user-attachments/assets/883717bd-5529-4305-8dad-b027f7a7b44e" />
+
